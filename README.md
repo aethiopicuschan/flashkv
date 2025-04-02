@@ -6,16 +6,32 @@
 
 FlashKV is a fast, memcached-compatible key-value store.
 
-## Benchmark vs. memcached
+## Benchmark
 
-I created a tool called [memcached-checker](https://github.com/aethiopicuschan/memcached-checker) and added functionality to benchmark `Set`, `Get`, and `Del`. Below is a comparison of the average values from 5 runs. The benchmarks were run on a MacBookPro M3 Max with 36GB of memory.
+To compare [memcached](https://memcached.org/) and [DragonFly](https://github.com/dragonflydb/dragonfly), I ran a benchmark with the following command.
+Each application is executed using Docker on a MacBook Pro equipped with an M3 Max and 32GB of memory.
 
-| Application | Set (QPS) | Get (QPS) | Del (QPS) |
-| ----------- | --------- | --------- | --------- |
-| FlashKV     | 11637.54  | 11337.09  | 11682.99  |
-| Memcached   | 10803.24  | 10605.32  | 10842.90  |
+```sh
+memtier_benchmark -s 127.0.0.1 -p 11211 --protocol=memcache_text -c 50 -n 100000 --threads=4
+```
 
-It is approximately 1.1x faster!
+### SET Benchmark
+
+| Application | QPS     | Latency 99% | Latency 99.9% |
+| ----------- | ------- | ----------- | ------------- |
+| FlashKV     | 9173.54 | 4.447ms     | 6.943ms       |
+| Memcached   | 9101.54 | 4.575ms     | 8.031ms       |
+| Dragonfly   | 8164.26 | 5.023ms     | 7.999ms       |
+
+### GET Benchmark
+
+| Application | QPS       | Latency 99% | Latency 99.9% |
+| ----------- | --------- | ----------- | ------------- |
+| FlashKV     | 91734.42  | 4.447ms     | 6.847ms       |
+| Memcached   | 91014.43  | 4.543ms     | 7.647ms       |
+| Dragonfly   | 81641.65  | 4.991ms     | 7.871ms       |
+
+In every category, FlashKV achieved outstanding results.
 
 ## Installation
 
