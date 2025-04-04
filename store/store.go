@@ -414,7 +414,7 @@ func (c *ConnContext) SetBuffer(data []byte) {
 }
 
 // processCommands processes incoming data and returns response bytes.
-func (s *Store) ProcessCommands(ctx *ConnContext) []byte {
+func (s *Store) ProcessCommands(ctx *ConnContext) ([]byte, bool) {
 	var response bytes.Buffer
 	for {
 		if !ctx.expectingData {
@@ -469,7 +469,7 @@ func (s *Store) ProcessCommands(ctx *ConnContext) []byte {
 				// Non-storage commands.
 				if cmd == "quit" {
 					// quit: close connection. Here, no response is returned and the loop is terminated.
-					return []byte("quit")
+					return []byte("quit"), true
 				}
 				resp := s.handleNonSetCommand(tokens)
 				response.WriteString(resp)
@@ -496,7 +496,7 @@ func (s *Store) ProcessCommands(ctx *ConnContext) []byte {
 			ctx.pendingSetTokens = nil
 		}
 	}
-	return response.Bytes()
+	return response.Bytes(), false
 }
 
 // handleSetCommand processes storage commands (set, add, replace, append, prepend, cas) that include a data block.
