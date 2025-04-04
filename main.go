@@ -11,7 +11,6 @@ func main() {
 	s := store.New(16)
 	events := &evio.Events{
 		Opened: func(c evio.Conn) (out []byte, opts evio.Options, action evio.Action) {
-			// 各接続ごとにコンテキストを初期化
 			ctx := store.NewConnContext(1024)
 			c.SetContext(ctx)
 			return
@@ -22,7 +21,6 @@ func main() {
 				ctx = store.NewConnContext(1024)
 				c.SetContext(ctx)
 			}
-			// 新たに受信したデータをバッファに追加
 			buf := ctx.GetBuffer()
 			buf = append(buf, in...)
 			ctx.SetBuffer(buf)

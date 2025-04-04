@@ -43,7 +43,7 @@ type Store struct {
 // NewStore returns a new Store with the given shard count.
 func New(shardCount int) *Store {
 	shards := make([]*Shard, shardCount)
-	for i := 0; i < shardCount; i++ {
+	for i := range shardCount {
 		shards[i] = &Shard{
 			items: make(map[string]*Item),
 		}
@@ -57,7 +57,7 @@ func New(shardCount int) *Store {
 // hashKey calculates a simple FNV-1a hash of the key.
 func hashKey(key string) uint32 {
 	var hash uint32 = 2166136261
-	for i := 0; i < len(key); i++ {
+	for i := range key {
 		hash ^= uint32(key[i])
 		hash *= 16777619
 	}
