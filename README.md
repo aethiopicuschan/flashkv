@@ -6,6 +6,24 @@
 
 FlashKV is a fast, memcached-compatible key-value store.
 
+## Installation
+
+```sh
+go install github.com/aethiopicuschan/flashkv@latest
+```
+
+## Extra commands for persistence
+
+Persistence of the store is possible with the following command.
+
+### Save
+
+`save {path}`
+
+### Load
+
+`load {path}`
+
 ## Benchmark
 
 To compare [memcached](https://memcached.org/) and [DragonFly](https://github.com/dragonflydb/dragonfly), I ran a benchmark with the following command.
@@ -32,9 +50,3 @@ memtier_benchmark -s 127.0.0.1 -p 11211 --protocol=memcache_text -c 50 -n 100000
 | Dragonfly   | 81641.65  | 4.991ms     | 7.871ms       |
 
 In every category, FlashKV achieved outstanding results.
-
-## Installation
-
-```sh
-go install github.com/aethiopicuschan/flashkv@latest
-```

@@ -25,6 +25,9 @@ func main() {
 			buf = append(buf, in...)
 			ctx.SetBuffer(buf)
 			out = s.ProcessCommands(ctx)
+			if string(out) == "quit" {
+				action = evio.Close
+			}
 			return
 		},
 		Closed: func(c evio.Conn, err error) (action evio.Action) {
