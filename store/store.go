@@ -2,7 +2,9 @@ package store
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -43,7 +45,7 @@ type Store struct {
 // NewStore returns a new Store with the given shard count.
 func New(shardCount int) *Store {
 	shards := make([]*Shard, shardCount)
-	for i := 0; i < shardCount; i++ {
+	for i := range shardCount {
 		shards[i] = &Shard{
 			items: make(map[string]*Item),
 		}
@@ -57,7 +59,7 @@ func New(shardCount int) *Store {
 // hashKey calculates a simple FNV-1a hash of the key.
 func hashKey(key string) uint32 {
 	var hash uint32 = 2166136261
-	for i := 0; i < len(key); i++ {
+	for i := range key {
 		hash ^= uint32(key[i])
 		hash *= 16777619
 	}
@@ -292,6 +294,100 @@ func setVerbosity(_level int) string {
 	return "OK\r\n"
 }
 
+// Save saves the current state of the store to disk as JSON.
+func (s *Store) Save(path string) {
+	path, err := expandPath(path)
+	if err != nil {
+		fmt.Printf("Error expanding path: %v\n", err)
+		return
+	}
+	// 構造体を用いて各アイテムの情報をまとめる
+	var dataToSave []PersistItem
+
+	// 各シャードからアイテムを収集する
+	for _, shard := range s.shards {
+		shard.mu.RLock()
+		for key, item := range shard.items {
+			// 保存時点で期限切れのアイテムは保存しない
+			if isExpired(item) {
+				continue
+			}
+			dataToSave = append(dataToSave, PersistItem{
+				Key:       key,
+				Value:     item.value,
+				Flags:     item.flags,
+				Exptime:   item.exptime,
+				CasUnique: item.casUnique,
+			})
+		}
+		shard.mu.RUnlock()
+	}
+
+	// JSON に変換する
+	jsonData, err := json.MarshalIndent(dataToSave, "", "  ")
+	if err != nil {
+		fmt.Printf("Error marshalling store: %v\n", err)
+		return
+	}
+
+	// ファイルに書き出す
+	err = os.WriteFile(path, jsonData, 0644)
+	if err != nil {
+		fmt.Printf("Error writing store to file: %v\n", err)
+	}
+}
+
+// Load loads the store state from disk.
+func (s *Store) Load(path string) {
+	path, err := expandPath(path)
+	if err != nil {
+		fmt.Printf("Error expanding path: %v\n", err)
+		return
+	}
+	// ファイルからデータを読み込む
+	jsonData, err := os.ReadFile(path)
+	if err != nil {
+		fmt.Printf("Error reading store from file: %v\n", err)
+		return
+	}
+
+	var loadedItems []PersistItem
+	err = json.Unmarshal(jsonData, &loadedItems)
+	if err != nil {
+		fmt.Printf("Error unmarshalling store: %v\n", err)
+		return
+	}
+
+	// 現在のストアをクリアする
+	for _, shard := range s.shards {
+		shard.mu.Lock()
+		shard.items = make(map[string]*Item)
+		shard.mu.Unlock()
+	}
+
+	// casCounter の更新用
+	var maxCas int64
+
+	// 読み込んだアイテムを各シャードに追加する
+	for _, pi := range loadedItems {
+		shard := s.getShard(pi.Key)
+		shard.mu.Lock()
+		shard.items[pi.Key] = &Item{
+			value:     pi.Value,
+			flags:     pi.Flags,
+			exptime:   pi.Exptime,
+			casUnique: pi.CasUnique,
+		}
+		shard.mu.Unlock()
+		if pi.CasUnique > maxCas {
+			maxCas = pi.CasUnique
+		}
+	}
+
+	// グローバルな casCounter を最新の値に更新する
+	atomic.StoreInt64(&casCounter, maxCas)
+}
+
 // connContext holds per-connection state.
 type ConnContext struct {
 	buffer           []byte   // Received data buffer.
@@ -339,7 +435,19 @@ func (s *Store) ProcessCommands(ctx *ConnContext) []byte {
 			}
 			cmd := tokens[0]
 			// Commands that require a following data block.
-			if cmd == "set" || cmd == "add" || cmd == "replace" || cmd == "append" || cmd == "prepend" || cmd == "cas" {
+			if cmd == "save" || cmd == "load" {
+				if len(tokens) != 2 {
+					response.WriteString("CLIENT_ERROR bad command line format\r\n")
+					continue
+				}
+				if cmd == "save" {
+					s.Save(tokens[1])
+					response.WriteString("END")
+				} else if cmd == "load" {
+					s.Load(tokens[1])
+					response.WriteString("END")
+				}
+			} else if cmd == "set" || cmd == "add" || cmd == "replace" || cmd == "append" || cmd == "prepend" || cmd == "cas" {
 				required := 5
 				if cmd == "cas" {
 					required = 6
@@ -361,7 +469,7 @@ func (s *Store) ProcessCommands(ctx *ConnContext) []byte {
 				// Non-storage commands.
 				if cmd == "quit" {
 					// quit: close connection. Here, no response is returned and the loop is terminated.
-					break
+					return []byte("quit")
 				}
 				resp := s.handleNonSetCommand(tokens)
 				response.WriteString(resp)
