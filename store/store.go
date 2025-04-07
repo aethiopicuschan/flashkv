@@ -301,14 +301,14 @@ func (s *Store) Save(path string) {
 		fmt.Printf("Error expanding path: %v\n", err)
 		return
 	}
-	// 構造体を用いて各アイテムの情報をまとめる
+	// Organize each item's information using a struct.
 	var dataToSave []PersistItem
 
-	// 各シャードからアイテムを収集する
+	// Collect items from each shard.
 	for _, shard := range s.shards {
 		shard.mu.RLock()
 		for key, item := range shard.items {
-			// 保存時点で期限切れのアイテムは保存しない
+			// Do not save items that are already expired at the time of saving.
 			if isExpired(item) {
 				continue
 			}
@@ -323,14 +323,14 @@ func (s *Store) Save(path string) {
 		shard.mu.RUnlock()
 	}
 
-	// JSON に変換する
+	// Convert to JSON.
 	jsonData, err := json.MarshalIndent(dataToSave, "", "  ")
 	if err != nil {
 		fmt.Printf("Error marshalling store: %v\n", err)
 		return
 	}
 
-	// ファイルに書き出す
+	// Write to file.
 	err = os.WriteFile(path, jsonData, 0644)
 	if err != nil {
 		fmt.Printf("Error writing store to file: %v\n", err)
@@ -344,7 +344,7 @@ func (s *Store) Load(path string) {
 		fmt.Printf("Error expanding path: %v\n", err)
 		return
 	}
-	// ファイルからデータを読み込む
+	// Read data from file.
 	jsonData, err := os.ReadFile(path)
 	if err != nil {
 		fmt.Printf("Error reading store from file: %v\n", err)
@@ -358,17 +358,17 @@ func (s *Store) Load(path string) {
 		return
 	}
 
-	// 現在のストアをクリアする
+	// Clear current store.
 	for _, shard := range s.shards {
 		shard.mu.Lock()
 		shard.items = make(map[string]*Item)
 		shard.mu.Unlock()
 	}
 
-	// casCounter の更新用
+	// For updating casCounter.
 	var maxCas int64
 
-	// 読み込んだアイテムを各シャードに追加する
+	// Insert loaded items into respective shards.
 	for _, pi := range loadedItems {
 		shard := s.getShard(pi.Key)
 		shard.mu.Lock()
@@ -384,7 +384,7 @@ func (s *Store) Load(path string) {
 		}
 	}
 
-	// グローバルな casCounter を最新の値に更新する
+	// Update global casCounter to the latest value.
 	atomic.StoreInt64(&casCounter, maxCas)
 }
 
@@ -442,10 +442,10 @@ func (s *Store) ProcessCommands(ctx *ConnContext) ([]byte, bool) {
 				}
 				if cmd == "save" {
 					s.Save(tokens[1])
-					response.WriteString("END")
+					response.WriteString("END\r\n")
 				} else if cmd == "load" {
 					s.Load(tokens[1])
-					response.WriteString("END")
+					response.WriteString("END\r\n")
 				}
 			} else if cmd == "set" || cmd == "add" || cmd == "replace" || cmd == "append" || cmd == "prepend" || cmd == "cas" {
 				required := 5
