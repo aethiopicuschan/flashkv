@@ -442,10 +442,10 @@ func (s *Store) ProcessCommands(ctx *ConnContext) ([]byte, bool) {
 				}
 				if cmd == "save" {
 					s.Save(tokens[1])
-					response.WriteString("END")
+					response.WriteString("END\r\n")
 				} else if cmd == "load" {
 					s.Load(tokens[1])
-					response.WriteString("END")
+					response.WriteString("END\r\n")
 				}
 			} else if cmd == "set" || cmd == "add" || cmd == "replace" || cmd == "append" || cmd == "prepend" || cmd == "cas" {
 				required := 5
